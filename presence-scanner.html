@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presence Scanner</title>
+<style>
+  :root{
+    --bg: #0F1B1F;
+    --panel: #15252A;
+    --panel-line: #24393F;
+    --amber: #E8A33D;
+    --amber-dim: #8A6A34;
+    --text: #EDEAE1;
+    --muted: #7E969C;
+    --green: #7FB77E;
+    --red: #C96A5E;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    padding: 28px 20px 60px;
+  }
+  .wrap{
+    max-width: 920px;
+    margin: 0 auto;
+  }
+  header{
+    display:flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid var(--panel-line);
+    padding-bottom: 18px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  h1{
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    font-weight: 400;
+    font-size: 30px;
+    margin: 0;
+    letter-spacing: 0.2px;
+  }
+  h1 em{
+    font-style: normal;
+    color: var(--amber);
+  }
+  .sub{
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 320px;
+    line-height: 1.5;
+  }
+
+  .layout{
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  @media (min-width: 760px){
+    .layout{ grid-template-columns: 300px 1fr; }
+  }
+
+  .panel{
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 4px;
+    padding: 20px;
+  }
+
+  label{
+    display:block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  input[type=text]{
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--panel-line);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 3px;
+    font-size: 15px;
+    margin-bottom: 18px;
+  }
+  input[type=text]:focus{
+    outline: 2px solid var(--amber-dim);
+    outline-offset: 1px;
+  }
+
+  .targets{
+    list-style: none;
+    margin: 0 0 20px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .targets li{
+    display:flex;
+    align-items:center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--panel-line);
+    border-radius: 3px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+  }
+  .targets li.active-scan{
+    border-color: var(--amber);
+  }
+  .targets li input{ accent-color: var(--amber); }
+  .targets li .dot{
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+  .targets li.hit .dot{ background: var(--green); }
+
+  .interval-row{
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .interval-row label{ margin: 0; }
+  select{
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--panel-line);
+    border-radius: 3px;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+
+  .controls{
+    display:flex;
+    gap: 10px;
+  }
+  button{
+    flex: 1;
+    padding: 11px 14px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: opacity 0.15s ease;
+  }
+  button:disabled{ opacity: 0.4; cursor: not-allowed; }
+  #startBtn{
+    background: var(--amber);
+    color: #1A1305;
+  }
+  #stopBtn{
+    background: transparent;
+    color: var(--red);
+    border-color: var(--red);
+  }
+  #startBtn:hover:not(:disabled){ opacity: 0.88; }
+  #stopBtn:hover:not(:disabled){ background: rgba(201,106,94,0.12); }
+
+  /* radar */
+  .stage{
+    display:flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px 20px 20px;
+  }
+  .radar{
+    position: relative;
+    width: 190px;
+    height: 190px;
+    border-radius: 50%;
+    border: 1px solid var(--panel-line);
+    background:
+      radial-gradient(circle, transparent 0%, transparent 62%, var(--panel-line) 63%, transparent 64%),
+      radial-gradient(circle, transparent 0%, transparent 30%, var(--panel-line) 31%, transparent 32%);
+    margin-bottom: 18px;
+  }
+  .radar::before{
+    content:"";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, rgba(232,163,61,0.55), transparent 32%);
+    opacity: 0;
+  }
+  .radar.sweeping::before{
+    opacity: 1;
+    animation: sweep 2.4s linear infinite;
+  }
+  @keyframes sweep{ to{ transform: rotate(360deg); } }
+  .radar .core{
+    position:absolute;
+    top:50%; left:50%;
+    width: 8px; height: 8px;
+    background: var(--amber);
+    border-radius: 50%;
+    transform: translate(-50%,-50%);
+    box-shadow: 0 0 10px 2px rgba(232,163,61,0.5);
+  }
+  .status-line{
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    min-height: 18px;
+  }
+  .status-line strong{ color: var(--text); }
+  .cycle-count{
+    font-size: 12px;
+    color: var(--amber-dim);
+    margin-top: 4px;
+  }
+
+  .log-panel h2{
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: none;
+    color: var(--muted);
+    margin: 0 0 12px;
+    letter-spacing: 0.3px;
+  }
+  .log{
+    max-height: 320px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 6px;
+  }
+  .log-entry{
+    display:flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border: 1px solid var(--panel-line);
+    border-radius: 3px;
+    font-size: 13px;
+  }
+  .log-entry .l-left{
+    display:flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .log-entry .l-time{
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .log-entry a{
+    color: var(--amber);
+    text-decoration: none;
+    font-size: 12px;
+    border: 1px solid var(--amber-dim);
+    padding: 4px 8px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .log-entry a:hover{ background: rgba(232,163,61,0.1); }
+  .log-entry.blocked{ border-color: var(--red); }
+  .empty-log{
+    color: var(--muted);
+    font-size: 13px;
+    padding: 10px 2px;
+  }
+
+  .note{
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    border-top: 1px solid var(--panel-line);
+    margin-top: 18px;
+    padding-top: 14px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Presence <em>Scanner</em></h1>
+    <div class="sub">Cycles your name across social platforms and opens each search until you stop it.</div>
+  </header>
+
+  <div class="layout">
+
+    <div class="panel">
+      <label for="query">Name or username</label>
+      <input type="text" id="query" placeholder="e.g. Lona Smith" value="Lona Smith">
+
+      <label>Mode</label>
+      <ul class="targets" id="modeList" style="margin-bottom:18px;">
+        <li data-mode="search" class="active-scan"><input type="radio" name="mode" checked><span class="dot"></span> Search results</li>
+        <li data-mode="profile"><input type="radio" name="mode"><span class="dot"></span> Jump to profile page</li>
+      </ul>
+
+      <label>Platforms to scan</label>
+      <ul class="targets" id="targetList">
+        <li data-key="x"><input type="checkbox" checked><span class="dot"></span> X (Twitter)</li>
+        <li data-key="youtube"><input type="checkbox" checked><span class="dot"></span> YouTube</li>
+        <li data-key="tiktok"><input type="checkbox" checked><span class="dot"></span> TikTok</li>
+        <li data-key="instagram"><input type="checkbox" checked><span class="dot"></span> Instagram</li>
+        <li data-key="facebook"><input type="checkbox" checked><span class="dot"></span> Facebook</li>
+      </ul>
+
+      <div class="interval-row">
+        <label for="interval" style="margin:0;">Time per platform</label>
+        <select id="interval">
+          <option value="3000">3s</option>
+          <option value="5000" selected>5s</option>
+          <option value="8000">8s</option>
+          <option value="12000">12s</option>
+        </select>
+      </div>
+
+      <div class="controls">
+        <button id="startBtn">Start scanning</button>
+        <button id="stopBtn" disabled>Stop</button>
+      </div>
+
+      <div class="note">
+        Browsers block tabs that open automatically, so only the first search opens on its own — after that, each round logs a link on the right for you to open with one click. This keeps running until you press Stop.
+      </div>
+    </div>
+
+    <div>
+      <div class="panel stage">
+        <div class="radar" id="radar"><div class="core"></div></div>
+        <div class="status-line" id="statusLine">Idle — press Start scanning</div>
+        <div class="cycle-count" id="cycleCount"></div>
+      </div>
+
+      <div class="panel log-panel" style="margin-top:20px;">
+        <h2>Scan log</h2>
+        <div class="log" id="log">
+          <div class="empty-log">Scans will appear here as they run.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const PLATFORMS = {
+    x:         { label: 'X',         search: q => `https://x.com/search?q=${q}&src=typed_query`, profile: u => `https://x.com/${u}` },
+    youtube:   { label: 'YouTube',   search: q => `https://www.youtube.com/results?search_query=${q}`, profile: u => `https://www.youtube.com/@${u}` },
+    tiktok:    { label: 'TikTok',    search: q => `https://www.tiktok.com/search?q=${q}`, profile: u => `https://www.tiktok.com/@${u}` },
+    instagram: { label: 'Instagram', search: q => `https://www.instagram.com/explore/search/keyword/?q=${q}`, profile: u => `https://www.instagram.com/${u}/` },
+    facebook:  { label: 'Facebook',  search: q => `https://www.facebook.com/search/top?q=${q}`, profile: u => `https://www.facebook.com/${u}` },
+  };
+
+  const queryInput   = document.getElementById('query');
+  const targetList   = document.getElementById('targetList');
+  const intervalSel  = document.getElementById('interval');
+  const startBtn     = document.getElementById('startBtn');
+  const stopBtn      = document.getElementById('stopBtn');
+  const radar        = document.getElementById('radar');
+  const statusLine   = document.getElementById('statusLine');
+  const cycleCountEl = document.getElementById('cycleCount');
+  const logEl        = document.getElementById('log');
+
+  let timer = null;
+  let queueIndex = 0;
+  let cycles = 0;
+  let running = false;
+
+  function enabledPlatformKeys(){
+    return [...targetList.children]
+      .filter(li => li.querySelector('input').checked)
+      .map(li => li.dataset.key);
+  }
+
+  function clearActiveHighlight(){
+    [...targetList.children].forEach(li => li.classList.remove('active-scan'));
+  }
+
+  function logScan(label, url, opened){
+    const empty = logEl.querySelector('.empty-log');
+    if (empty) empty.remove();
+
+    const entry = document.createElement('div');
+    entry.className = 'log-entry' + (opened ? '' : ' blocked');
+
+    const time = new Date().toLocaleTimeString();
+    entry.innerHTML = `
+      <div class="l-left">
+        <span>${label}</span>
+        <span class="l-time">${time}${opened ? '' : ' · pop-up blocked'}</span>
+      </div>
+    `;
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = opened ? 'Opened' : 'Open now';
+    entry.appendChild(link);
+
+    logEl.appendChild(entry);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function runStep(){
+    const keys = enabledPlatformKeys();
+    if (keys.length === 0){
+      stopScanning();
+      statusLine.textContent = 'No platforms selected — pick at least one.';
+      return;
+    }
+    if (queueIndex >= keys.length){
+      queueIndex = 0;
+      cycles++;
+      cycleCountEl.textContent = `Completed ${cycles} full cycle${cycles === 1 ? '' : 's'}`;
+    }
+
+    const key = keys[queueIndex];
+    const platform = PLATFORMS[key];
+    const rawQuery = queryInput.value.trim() || 'Lona Smith';
+    const mode = document.querySelector('input[name="mode"]:checked').closest('li').dataset.mode;
+    const url = mode === 'profile'
+      ? platform.profile(encodeURIComponent(rawQuery.replace(/^@/, '').replace(/\s+/g, '')))
+      : platform.search(encodeURIComponent(rawQuery));
+
+    clearActiveHighlight();
+    const li = targetList.querySelector(`[data-key="${key}"]`);
+    li.classList.add('active-scan');
+
+    statusLine.innerHTML = `${mode === 'profile' ? 'Opening' : 'Scanning'} <strong>${platform.label}</strong> ${mode === 'profile' ? 'profile for' : 'for'} "${rawQuery}"`;
+
+    let win = null;
+    try { win = window.open(url, '_blank'); } catch(e) { win = null; }
+    const opened = !!win;
+    if (opened) li.classList.add('hit');
+
+    logScan(platform.label, url, opened);
+
+    queueIndex++;
+  }
+
+  function startScanning(){
+    if (running) return;
+    running = true;
+    queueIndex = 0;
+    cycles = 0;
+    cycleCountEl.textContent = '';
+    radar.classList.add('sweeping');
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    queryInput.disabled = true;
+
+    runStep(); // first run happens inside the click gesture, so its tab opens reliably
+    const ms = parseInt(intervalSel.value, 10);
+    timer = setInterval(runStep, ms);
+  }
+
+  function stopScanning(){
+    running = false;
+    clearInterval(timer);
+    timer = null;
+    radar.classList.remove('sweeping');
+    clearActiveHighlight();
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    queryInput.disabled = false;
+    statusLine.textContent = 'Stopped — press Start scanning to resume';
+  }
+
+  document.querySelectorAll('#modeList input[name="mode"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      document.querySelectorAll('#modeList li').forEach(li => li.classList.remove('active-scan'));
+      radio.closest('li').classList.add('active-scan');
+    });
+  });
+
+  startBtn.addEventListener('click', startScanning);
+  stopBtn.addEventListener('click', stopScanning);
+</script>
+</body>
+</html>
